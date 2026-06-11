@@ -79,6 +79,16 @@ ol.steps{padding-left:22px}ol.steps li{margin:8px 0;font-size:14px}
 .toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
 footer{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);background:rgba(15,17,21,.9);padding:6px;border-top:1px solid var(--line)}
 @media(min-width:640px){.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+.fab{position:fixed;right:16px;bottom:40px;z-index:30;width:54px;height:54px;border-radius:50%;background:var(--accent2);border:0;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45)}
+.fab .badge{position:absolute;top:-4px;right:-4px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.modal .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;padding:18px 16px 26px;width:100%;max-width:560px;max-height:88vh;overflow:auto}
+.sheet h3{margin:0 0 4px}
+.sheet select,.sheet textarea{width:100%;margin-top:10px}
+.fbitem{border-top:1px solid var(--line);padding:8px 0;font-size:13px}
+.fbitem .st{font-size:12px}
+.fbitem .st.sent{color:var(--accent)}
+.fbitem .st.pending{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -171,7 +181,72 @@ function boot(){
   $('#nav').innerHTML=TABS.map(([id,t])=>`<button data-t="${id}">${t}</button>`).join('');
   $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b){TAB=b.dataset.t;render()}});
   $('#foot').textContent=DATA.reference.disclaimer;
+  initFeedback();
   render();
+}
+
+// ---- FEEDBACK (outbox in localStorage + share/mailto transport) ----
+function fbList(){return store.get('feedback',[])}
+function fbPending(){return fbList().filter(f=>!f.sent)}
+function fbBadge(){
+  const n=fbPending().length,b=$('#fab .badge');
+  if(b)b.classList.toggle('hidden',!n),b.textContent=n;
+}
+function initFeedback(){
+  document.body.insertAdjacentHTML('beforeend',
+    `<button id="fab" class="fab" title="Отзыв">💬<span class="badge hidden"></span></button><div id="fbmodal"></div>`);
+  $('#fab').addEventListener('click',()=>openFb());
+  fbBadge();
+}
+function fbSections(){
+  return [...TABS.map(([id,t])=>t),'💡 Идея: новый раздел','Ошибка в данных о препарате','Другое'];
+}
+function openFb(){
+  const cur=(TABS.find(([id])=>id===TAB)||[])[1]||'Другое';
+  const hist=fbList().slice().reverse().slice(0,10);
+  $('#fbmodal').innerHTML=`<div class="modal" id="fbov"><div class="sheet">
+    <h3>💬 Обратная связь</h3>
+    <div class="muted small">${esc(DATA.reference.feedback.intro)}</div>
+    <select id="fbsec">${fbSections().map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join('')}</select>
+    <textarea id="fbtext" rows="4" placeholder="Что улучшить? Что добавить? Можно по-русски или по-английски — как удобно."></textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="fbsave">Сохранить и отправить</button>
+      <button class="btn" id="fbclose">Закрыть</button>
+    </div>
+    ${fbPending().length?`<div class="tipbox" style="margin-top:14px">📤 Неотправленных: ${fbPending().length} <button class="btn small" id="fbresend" style="margin-left:8px;padding:4px 10px">Отправить сейчас</button></div>`:''}
+    ${hist.length?`<div style="margin-top:14px"><b class="small muted">Мои отзывы</b>
+      ${hist.map(f=>`<div class="fbitem"><span class="st ${f.sent?'sent':'pending'}">${f.sent?'✓ отправлен':'⏳ не отправлен'}</span> · <span class="muted">${esc(f.section)}</span><br>${esc(f.text.length>90?f.text.slice(0,90)+'…':f.text)}</div>`).join('')}</div>`:''}
+  </div></div>`;
+  $('#fbov').addEventListener('click',e=>{if(e.target.id==='fbov')closeFb()});
+  $('#fbclose').addEventListener('click',closeFb);
+  if($('#fbresend'))$('#fbresend').addEventListener('click',()=>fbSend());
+  $('#fbsave').addEventListener('click',()=>{
+    const text=$('#fbtext').value.trim();
+    if(!text)return $('#fbtext').focus();
+    const l=fbList();
+    l.push({id:Date.now(),ts:new Date().toISOString().slice(0,16).replace('T',' '),section:$('#fbsec').value,text,sent:false});
+    store.set('feedback',l);
+    fbSend();
+  });
+}
+function closeFb(){$('#fbmodal').innerHTML='';fbBadge()}
+function fbMessage(items){
+  const fb=DATA.reference.feedback;
+  return `${fb.tag} Отзыв по тренажёру\n\n`+items.map(f=>`Раздел: ${f.section}\nКогда: ${f.ts}\n${f.text}`).join('\n\n———\n\n');
+}
+async function fbSend(){
+  const l=fbList(),pending=l.filter(f=>!f.sent);
+  if(!pending.length)return closeFb();
+  const fb=DATA.reference.feedback,msg=fbMessage(pending);
+  const markSent=()=>{pending.forEach(f=>f.sent=true);store.set('feedback',l);closeFb();};
+  if(navigator.share){
+    try{await navigator.share({title:fb.tag+' Отзыв',text:msg});markSent();return}
+    catch(e){if(e&&e.name==='AbortError')return} // user cancelled share — keep pending
+  }
+  const mailto=`mailto:${fb.email}?subject=${encodeURIComponent(fb.tag+' Отзыв')}&body=${encodeURIComponent(msg)}`;
+  if(mailto.length<7500){location.href=mailto;markSent();return}
+  try{await navigator.clipboard.writeText(msg);alert('Текст скопирован — вставь его в сообщение Мо (Telegram/WhatsApp).');markSent()}
+  catch(e){alert('Не удалось отправить автоматически. Текст отзыва сохранён — попробуй позже.')}
 }
 function render(){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.t===TAB));
@@ -201,6 +276,7 @@ function rHome(m){
       <span class="stat"><b>${qa?Math.round(qc/qa*100)+'%':'—'}</b><span>точность в тестах</span></span>
       <span class="stat"><b>${nloc}</b><span>мест заполнено</span></span>
     </div>
+    <div class="muted small" style="margin-top:6px">💬 Кнопка справа внизу — отзывы и идеи: чего не хватает, что неудобно, какой раздел добавить. Сайт обновляется по ним.</div>
   </div>
   <div class="card"><h3>Сегодняшняя тренировка (~35 мин)</h3>
     <ol class="steps">
