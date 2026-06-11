@@ -117,7 +117,7 @@ footer{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:11px;c
 <script src="data.js"></script>
 <script>
 'use strict';
-let DATA=null;
+let DATA=null,PW=null;
 const $=(s,el)=>(el||document).querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
@@ -141,6 +141,7 @@ $('#gateform').addEventListener('submit',async ev=>{
   err.textContent='Расшифровка…';
   try{
     DATA=await decrypt($('#pw').value,window.APTEKA_ENC);
+    PW=$('#pw').value;
     $('#gate').classList.add('hidden');
     $('#app').classList.remove('hidden');
     boot();
@@ -215,38 +216,83 @@ function openFb(){
     </div>
     ${fbPending().length?`<div class="tipbox" style="margin-top:14px">📤 Неотправленных: ${fbPending().length} <button class="btn small" id="fbresend" style="margin-left:8px;padding:4px 10px">Отправить сейчас</button></div>`:''}
     ${hist.length?`<div style="margin-top:14px"><b class="small muted">Мои отзывы</b>
-      ${hist.map(f=>`<div class="fbitem"><span class="st ${f.sent?'sent':'pending'}">${f.sent?'✓ отправлен':'⏳ не отправлен'}</span> · <span class="muted">${esc(f.section)}</span><br>${esc(f.text.length>90?f.text.slice(0,90)+'…':f.text)}</div>`).join('')}</div>`:''}
+      ${hist.map(f=>`<div class="fbitem"><span class="st ${f.sent?'sent':'pending'}">${f.sent?'✓ отправлен':'⏳ не отправлен'}</span> · <span class="muted">${esc(f.section)}</span><br>${esc(f.preview||f.text||'')}</div>`).join('')}</div>`:''}
   </div></div>`;
   $('#fbov').addEventListener('click',e=>{if(e.target.id==='fbov')closeFb()});
   $('#fbclose').addEventListener('click',closeFb);
   if($('#fbresend'))$('#fbresend').addEventListener('click',()=>fbSend());
-  $('#fbsave').addEventListener('click',()=>{
+  $('#fbsave').addEventListener('click',async()=>{
     const text=$('#fbtext').value.trim();
     if(!text)return $('#fbtext').focus();
+    const ts=new Date().toISOString().slice(0,16).replace('T',' ');
+    const section=$('#fbsec').value;
+    const blob=await fbEncrypt({section,text,ts});
     const l=fbList();
-    l.push({id:Date.now(),ts:new Date().toISOString().slice(0,16).replace('T',' '),section:$('#fbsec').value,text,sent:false});
+    l.push({id:Date.now(),ts,section,preview:text.length>90?text.slice(0,90)+'…':text,blob,sent:false});
     store.set('feedback',l);
     fbSend();
   });
 }
 function closeFb(){$('#fbmodal').innerHTML='';fbBadge()}
+// Feedback is encrypted with the site password (AES-GCM, like data.js) before it
+// leaves the device — Telegram/Gmail/GitHub only ever carry an opaque blob.
+const FB_B64=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
+async function fbEncrypt(obj){
+  const enc=new TextEncoder();
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const baseKey=await crypto.subtle.importKey('raw',enc.encode(PW),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},baseKey,{name:'AES-GCM',length:256},false,['encrypt']);
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,enc.encode(JSON.stringify(obj))));
+  return 'APTEKA-FB-1:'+FB_B64(salt)+':'+FB_B64(iv)+':'+FB_B64(ct);
+}
+async function fbBlob(f){ // legacy outbox items stored plaintext — encrypt on demand
+  if(!f.blob&&f.text){f.blob=await fbEncrypt({section:f.section,text:f.text,ts:f.ts});f.preview=f.text.length>90?f.text.slice(0,90)+'…':f.text;delete f.text}
+  return f.blob;
+}
 function fbMessage(items){
   const fb=DATA.reference.feedback;
-  return `${fb.tag} Отзыв по тренажёру\n\n`+items.map(f=>`Раздел: ${f.section}\nКогда: ${f.ts}\n${f.text}`).join('\n\n———\n\n');
+  return `${fb.tag} Отзыв (зашифровано)\n\n`+items.map(f=>`Раздел: ${f.section} · ${f.ts}\n${f.blob}`).join('\n\n');
+}
+async function fbGithub(items){ // one issue per item; returns true if all landed
+  const fb=DATA.reference.feedback;
+  if(!fb.ghtoken||!fb.repo)return false;
+  let all=true;
+  for(const f of items){
+    try{
+      const res=await fetch(`https://api.github.com/repos/${fb.repo}/issues`,{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+fb.ghtoken,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+        body:JSON.stringify({title:`[fb] ${f.section} · ${f.ts}`,body:`Раздел: ${f.section}\n\n${f.blob}`})
+      });
+      if(res.ok)f.sent=true;else all=false;
+    }catch(e){all=false}
+  }
+  return all;
 }
 async function fbSend(){
   const l=fbList(),pending=l.filter(f=>!f.sent);
   if(!pending.length)return closeFb();
-  const fb=DATA.reference.feedback,msg=fbMessage(pending);
+  for(const f of pending)await fbBlob(f);
+  store.set('feedback',l);
+  const fb=DATA.reference.feedback;
   const markSent=()=>{pending.forEach(f=>f.sent=true);store.set('feedback',l);closeFb();};
+  // 1) direct to GitHub (encrypted issues on the trainer repo) when configured
+  await fbGithub(pending);
+  store.set('feedback',l);
+  if(!pending.some(f=>!f.sent)){closeFb();return}
+  const left=pending.filter(f=>!f.sent),msg=fbMessage(left);
+  // 2) native share sheet
   if(navigator.share){
     try{await navigator.share({title:fb.tag+' Отзыв',text:msg});markSent();return}
-    catch(e){if(e&&e.name==='AbortError')return} // user cancelled share — keep pending
+    catch(e){if(e&&e.name==='AbortError')return} // user cancelled — keep pending
   }
+  // 3) prefilled mail
   const mailto=`mailto:${fb.email}?subject=${encodeURIComponent(fb.tag+' Отзыв')}&body=${encodeURIComponent(msg)}`;
   if(mailto.length<7500){location.href=mailto;markSent();return}
-  try{await navigator.clipboard.writeText(msg);alert('Текст скопирован — вставь его в сообщение Мо (Telegram/WhatsApp).');markSent()}
-  catch(e){alert('Не удалось отправить автоматически. Текст отзыва сохранён — попробуй позже.')}
+  // 4) clipboard
+  try{await navigator.clipboard.writeText(msg);alert('Зашифрованный отзыв скопирован — вставь его в сообщение Мо (Telegram/WhatsApp).');markSent()}
+  catch(e){alert('Не удалось отправить автоматически. Отзыв сохранён — попробуй позже.')}
 }
 function render(){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.t===TAB));
