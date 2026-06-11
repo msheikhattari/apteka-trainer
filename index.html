@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Аптека-Тренажёр</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#161a21; --panel2:#1d2230; --line:#2a3142;
+  --text:#e6e8ec; --muted:#9aa3b2; --accent:#4ade80; --accent2:#4ea1ff;
+  --warn:#fbbf24; --bad:#f87171; --rx:#f87171; --otc:#4ade80; --pku:#c084fc;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+.hidden{display:none!important}
+.overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.gatebox{max-width:380px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px;text-align:center}
+.gatebox h2{margin:0 0 6px;font-size:22px}
+.gatebox p{color:var(--muted);font-size:14px;margin:0 0 18px}
+.gatebox input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:16px;margin-bottom:12px;text-align:center}
+.gatebox button{width:100%;padding:12px;border-radius:10px;border:0;background:var(--accent);color:#08260f;font-size:16px;font-weight:700;cursor:pointer}
+#gateerr{color:var(--bad);font-size:14px;min-height:20px;margin-top:10px}
+header{position:sticky;top:0;background:rgba(15,17,21,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10;padding:10px 14px 0}
+header h1{font-size:17px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+header h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);display:inline-block}
+nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{flex:0 0 auto;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:14px;cursor:pointer;white-space:nowrap}
+nav button.active{background:var(--accent);border-color:var(--accent);color:#08260f;font-weight:700}
+main{padding:16px 14px 80px;max-width:880px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:16px}
+.muted{color:var(--muted);font-size:14px}
+.small{font-size:13px}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;margin-right:6px}
+.pill.otc{background:rgba(74,222,128,.15);color:var(--otc)}
+.pill.rx{background:rgba(248,113,113,.15);color:var(--rx)}
+.pill.pku{background:rgba(192,132,252,.18);color:var(--pku)}
+.pill.grp{background:rgba(78,161,255,.13);color:var(--accent2);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=search],input[type=text],select,textarea{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:15px}
+input[type=search]{flex:1;min-width:160px}
+button.btn{padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:15px;cursor:pointer}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#08260f;font-weight:700}
+button.btn.blue{background:var(--accent2);border-color:var(--accent2);color:#06121f;font-weight:700}
+button.speak{border:1px solid var(--line);background:var(--panel2);color:var(--accent);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:15px;flex:0 0 auto}
+.stat{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 8px 8px 0;text-align:center;min-width:90px}
+.stat b{display:block;font-size:22px;color:var(--accent)}
+.stat span{font-size:12px;color:var(--muted)}
+.drug{cursor:pointer}
+.drug .body{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.drug.open .body{display:block}
+.kv{margin:4px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:600}
+.locinput{margin-top:8px}
+.locinput input{width:100%}
+.flash{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:30px 20px;text-align:center;min-height:210px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.flash .front{font-size:24px;font-weight:700}
+.flash .back{font-size:16px;color:var(--muted)}
+.opt{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:15px;cursor:pointer}
+.opt.correct{border-color:var(--accent);background:rgba(74,222,128,.12)}
+.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.12)}
+.phrase{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.phrase:last-child{border-bottom:0}
+.phrase .ru{font-size:15px}
+.phrase .en{color:var(--accent2);font-size:13px;margin-top:2px}
+.phrase .nt{color:var(--muted);font-size:13px;margin-top:2px}
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.subtabs button{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:13px;cursor:pointer}
+.subtabs button.active{color:var(--text);border-color:var(--accent);background:var(--panel2)}
+.scen .body{display:none;margin-top:10px}
+.scen.open .body{display:block}
+.scen ul{margin:6px 0;padding-left:20px;font-size:14px}
+.redflag{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);border-radius:8px;padding:8px 12px;font-size:14px;margin-top:8px}
+.tipbox{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:8px 12px;font-size:14px;margin-top:8px}
+.progressbar{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin:8px 0}
+.progressbar div{height:100%;background:var(--accent)}
+ol.steps{padding-left:22px}ol.steps li{margin:8px 0;font-size:14px}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
+footer{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);background:rgba(15,17,21,.9);padding:6px;border-top:1px solid var(--line)}
+@media(min-width:640px){.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+</style>
+</head>
+<body>
+
+<div id="gate" class="overlay">
+  <div class="gatebox">
+    <h2>💊 Аптека-Тренажёр</h2>
+    <p>Введите пароль для доступа</p>
+    <form id="gateform">
+      <input id="pw" type="password" autocomplete="current-password" placeholder="Пароль" autofocus>
+      <button type="submit">Войти</button>
+    </form>
+    <div id="gateerr"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<header>
+  <h1><span class="dot"></span>Аптека-Тренажёр <span class="muted small" style="font-weight:400">· Авилек</span></h1>
+  <nav id="nav"></nav>
+</header>
+<main id="main"></main>
+<footer id="foot"></footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+'use strict';
+let DATA=null;
+const $=(s,el)=>(el||document).querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const store={
+  get(k,d){try{const v=localStorage.getItem('apteka_'+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem('apteka_'+k,JSON.stringify(v))}catch(e){}}
+};
+
+// ---- decrypt gate ----
+async function decrypt(pw,e){
+  const enc=new TextEncoder();
+  const baseKey=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(e.salt),iterations:e.iter,hash:'SHA-256'},baseKey,{name:'AES-GCM',length:256},false,['decrypt']);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(e.iv)},key,b64d(e.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+$('#gateform').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const err=$('#gateerr');
+  if(!window.APTEKA_ENC){err.textContent='data.js не найден';return}
+  err.textContent='Расшифровка…';
+  try{
+    DATA=await decrypt($('#pw').value,window.APTEKA_ENC);
+    $('#gate').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    boot();
+  }catch(e){err.textContent='Неверный пароль'}
+});
+
+// ---- speech ----
+let RU_VOICE=null;
+function pickVoice(){
+  const vs=speechSynthesis.getVoices().filter(v=>v.lang&&v.lang.toLowerCase().startsWith('ru'));
+  RU_VOICE=vs.find(v=>/milena|premium|enhanced/i.test(v.name))||vs[0]||null;
+}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+function speak(text){
+  if(!('speechSynthesis' in window))return alert('Озвучка не поддерживается на этом устройстве');
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='ru-RU';if(RU_VOICE)u.voice=RU_VOICE;
+  u.rate=store.get('settings',{}).slow?0.72:0.95;
+  speechSynthesis.speak(u);
+}
+
+// ---- helpers ----
+const groupName=id=>(DATA.groups.find(g=>g.id===id)||{}).name||id;
+const rxClass=rx=>/ПКУ/.test(rx)?'pku':(/Rx/.test(rx)?'rx':'otc');
+function rxPill(rx){return `<span class="pill ${rxClass(rx)}">${esc(rx)}</span>`}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function sample(arr,n,excl){const pool=arr.filter(x=>x!==excl);return shuffle(pool).slice(0,n)}
+function locs(){return store.get('locations',{})}
+
+// ---- tabs ----
+const TABS=[
+  ['home','Главная'],['drugs','Лекарства'],['cards','Карточки'],
+  ['quiz','Тренажёры'],['lang','Язык'],['scen','Сценарии'],['ref','Справка']
+];
+let TAB='home';
+function boot(){
+  $('#nav').innerHTML=TABS.map(([id,t])=>`<button data-t="${id}">${t}</button>`).join('');
+  $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b){TAB=b.dataset.t;render()}});
+  $('#foot').textContent=DATA.reference.disclaimer;
+  render();
+}
+function render(){
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.t===TAB));
+  const m=$('#main');m.innerHTML='';
+  ({home:rHome,drugs:rDrugs,cards:rCards,quiz:rQuiz,lang:rLang,scen:rScen,ref:rRef})[TAB](m);
+  window.scrollTo(0,0);
+}
+
+// ---- HOME ----
+function rHome(m){
+  const srs=store.get('srs',{}),qs=store.get('quizstats',{});
+  const now=Date.now();
+  let due=0,learned=0;
+  DATA.drugs.forEach(d=>{['n2g','m2n'].forEach(mode=>{
+    const c=srs[mode+'|'+d.name];
+    if(c&&c.box>=3)learned++;
+    if(!c||c.due<=now)due++;
+  })});
+  let qa=0,qc=0;Object.values(qs).forEach(s=>{qa+=s.a;qc+=s.c});
+  const nloc=Object.keys(locs()).length;
+  m.innerHTML=`
+  <div class="card"><h3>Привет! 👋</h3>
+    <div class="muted">Тренажёр для работы в аптеке «Авилек»: препараты, места, и главное — русский язык. Занимайся 4 раза в неделю по 30–40 минут.</div>
+    <div style="margin-top:12px">
+      <span class="stat"><b>${learned}</b><span>карточек выучено</span></span>
+      <span class="stat"><b>${due}</b><span>карточек к повторению</span></span>
+      <span class="stat"><b>${qa?Math.round(qc/qa*100)+'%':'—'}</b><span>точность в тестах</span></span>
+      <span class="stat"><b>${nloc}</b><span>мест заполнено</span></span>
+    </div>
+  </div>
+  <div class="card"><h3>Сегодняшняя тренировка (~35 мин)</h3>
+    <ol class="steps">
+      <li><b>Язык (15 мин):</b> вкладка «Язык» — прослушай и повтори вслух 10 фраз, пройди аудирование.</li>
+      <li><b>Карточки (10 мин):</b> вкладка «Карточки» — повтори, что выпало на сегодня.</li>
+      <li><b>Тренажёр (10 мин):</b> вкладка «Тренажёры» — один тест до конца.</li>
+    </ol>
+    <div class="row">
+      <button class="btn primary" onclick="TAB='lang';render()">Начать с языка ▶</button>
+      <button class="btn" onclick="TAB='cards';render()">Карточки</button>
+    </div>
+  </div>
+  <div class="card"><h3>${esc(DATA.reference.studyplan.title)}</h3>
+    <div class="muted small">${esc(DATA.reference.studyplan.intro)}</div>
+    ${DATA.reference.studyplan.weeks.map(w=>`
+      <div style="margin-top:10px"><b>${esc(w.period)}</b> — <span class="pill grp">${esc(w.focus)}</span>
+      <ul class="small" style="margin:6px 0;padding-left:20px;color:var(--muted)">${w.tasks.map(t=>`<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}
+  </div>`;
+}
+
+// ---- DRUGS ----
+let drugFilter={q:'',g:'',rx:''};
+function rDrugs(m){
+  m.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <input type="search" id="dq" placeholder="Поиск: название, МНН, показания…" value="${esc(drugFilter.q)}">
+      <select id="dg"><option value="">Все группы</option>${DATA.groups.map(g=>`<option value="${g.id}" ${drugFilter.g===g.id?'selected':''}>${esc(g.name)}</option>`).join('')}</select>
+      <select id="drx"><option value="">Все</option><option ${drugFilter.rx==='otc'?'selected':''} value="otc">Без рецепта</option><option ${drugFilter.rx==='rx'?'selected':''} value="rx">По рецепту</option></select>
+      <button class="btn" id="locbtn">📥 Импорт мест</button>
+    </div>
+    <div class="muted small" style="margin-top:8px">Нажми на препарат — полная карточка. Поле «Место» — впиши, где он лежит в твоей аптеке (сохраняется на устройстве).</div>
+  </div>
+  <div id="dlist"></div>
+  <div id="locdlg" class="card hidden">
+    <h3>Импорт мест из М-Аптеки</h3>
+    <div class="muted small">Выгрузи отчёт «Остатки товара на стеллажах» (Ctrl+X в Excel), затем вставь сюда строки вида: <i>Название [таб или ;] место</i> — по одной на строку.</div>
+    <textarea id="locta" rows="6" style="width:100%;margin:10px 0"></textarea>
+    <button class="btn primary" id="locgo">Импортировать</button>
+  </div>`;
+  const list=$('#dlist');
+  const draw=()=>{
+    const f=drugFilter,q=f.q.toLowerCase(),L=locs();
+    const items=DATA.drugs.filter(d=>{
+      if(f.g&&d.group!==f.g)return false;
+      if(f.rx==='otc'&&!/ОТС/.test(d.rx))return false;
+      if(f.rx==='rx'&&!/Rx|ПКУ/.test(d.rx))return false;
+      if(q&&!(d.name+' '+d.mnn+' '+d.use+' '+(d.analogs||[]).join(' ')).toLowerCase().includes(q))return false;
+      return true;
+    });
+    list.innerHTML=items.map(d=>{
+      const loc=L[d.name]||'';
+      return `<div class="card drug" data-n="${esc(d.name)}">
+        <div class="row" style="justify-content:space-between">
+          <div><b>${esc(d.name)}</b> <span class="muted small">${esc(d.mnn)}</span></div>
+          <div>${loc?`<span class="pill grp">📍 ${esc(loc)}</span>`:''}${rxPill(d.rx)}</div>
+        </div>
+        <div class="small"><span class="pill grp">${esc(groupName(d.group))}</span></div>
+        <div class="body">
+          <div class="kv"><b>МНН:</b> ${esc(d.mnn)} <button class="speak" data-say="${esc(d.name)}. ${esc(d.mnn)}">🔊</button></div>
+          <div class="kv"><b>Форма:</b> ${esc(d.form)}</div>
+          <div class="kv"><b>Применение:</b> ${esc(d.use)}</div>
+          <div class="kv"><b>Осторожно:</b> ${esc(d.warn)}</div>
+          <div class="kv"><b>Аналоги:</b> ${esc((d.analogs||[]).join(', ')||'—')}</div>
+          ${d.tip?`<div class="tipbox">💡 ${esc(d.tip)}</div>`:''}
+          <div class="locinput"><input type="text" placeholder="📍 Место в аптеке (например: витрина 2, полка 3)" value="${esc(loc)}" data-loc="${esc(d.name)}"></div>
+        </div>
+      </div>`}).join('')||'<div class="muted">Ничего не найдено</div>';
+  };
+  draw();
+  $('#dq').addEventListener('input',e=>{drugFilter.q=e.target.value;draw()});
+  $('#dg').addEventListener('change',e=>{drugFilter.g=e.target.value;draw()});
+  $('#drx').addEventListener('change',e=>{drugFilter.rx=e.target.value;draw()});
+  $('#locbtn').addEventListener('click',()=>$('#locdlg').classList.toggle('hidden'));
+  $('#locgo').addEventListener('click',()=>{
+    const L=locs();let n=0;
+    $('#locta').value.split('\n').forEach(line=>{
+      const p=line.split(/\t|;/).map(s=>s.trim()).filter(Boolean);
+      if(p.length<2)return;
+      const hit=DATA.drugs.find(d=>p[0].toLowerCase().startsWith(d.name.toLowerCase())||d.name.toLowerCase().startsWith(p[0].toLowerCase().split(' ')[0]));
+      if(hit){L[hit.name]=p[1];n++}
+    });
+    store.set('locations',L);alert('Импортировано мест: '+n);draw();
+  });
+  list.addEventListener('click',e=>{
+    const sp=e.target.closest('.speak');
+    if(sp){e.stopPropagation();speak(sp.dataset.say);return}
+    if(e.target.closest('input'))return;
+    const c=e.target.closest('.drug');if(c)c.classList.toggle('open');
+  });
+  list.addEventListener('change',e=>{
+    const inp=e.target.closest('[data-loc]');
+    if(inp){const L=locs();const v=inp.value.trim();if(v)L[inp.dataset.loc]=v;else delete L[inp.dataset.loc];store.set('locations',L)}
+  });
+}
+
+// ---- FLASHCARDS (Leitner) ----
+const INTERVALS=[0,1,3,7,21]; // days per box
+let deck=[],deckIdx=0,showBack=false,cardMode='n2g';
+function srsGet(){return store.get('srs',{})}
+function buildDeck(mode){
+  const srs=srsGet(),now=Date.now();
+  let cards=DATA.drugs.map(d=>({mode,d,key:mode+'|'+d.name}));
+  if(mode==='loc'){const L=locs();cards=cards.filter(c=>L[c.d.name])}
+  cards=cards.filter(c=>{const s=srs[c.key];return !s||s.due<=now});
+  return shuffle(cards).slice(0,20);
+}
+function rCards(m){
+  m.innerHTML=`
+  <div class="card">
+    <h3>Карточки с интервальным повторением</h3>
+    <div class="subtabs" id="cmodes">
+      <button data-m="n2g" class="${cardMode==='n2g'?'active':''}">Препарат → группа и МНН</button>
+      <button data-m="m2n" class="${cardMode==='m2n'?'active':''}">МНН → препараты</button>
+      <button data-m="loc" class="${cardMode==='loc'?'active':''}">Препарат → место 📍</button>
+    </div>
+    <div id="cardarea"></div>
+  </div>`;
+  $('#cmodes').addEventListener('click',e=>{const b=e.target.closest('button');if(b){cardMode=b.dataset.m;startDeck()}});
+  startDeck();
+}
+function startDeck(){
+  document.querySelectorAll('#cmodes button').forEach(b=>b.classList.toggle('active',b.dataset.m===cardMode));
+  deck=buildDeck(cardMode);deckIdx=0;showBack=false;drawCard();
+}
+function drawCard(){
+  const area=$('#cardarea');if(!area)return;
+  if(cardMode==='loc'&&!Object.keys(locs()).length){
+    area.innerHTML='<div class="muted" style="padding:20px 0">Сначала заполни места во вкладке «Лекарства» (или импортируй из М-Аптеки) — тогда здесь появятся карточки «где лежит».</div>';return;
+  }
+  if(!deck.length){area.innerHTML='<div class="muted" style="padding:20px 0">🎉 На сегодня всё повторено! Возвращайся завтра — интервалы работают на тебя.</div>';return}
+  if(deckIdx>=deck.length){area.innerHTML=`<div class="muted" style="padding:20px 0">✅ Сессия пройдена: ${deck.length} карточек. Молодец!</div><button class="btn primary" onclick="startDeck()">Ещё сессия</button>`;return}
+  const c=deck[deckIdx],d=c.d;
+  let front,back;
+  if(c.mode==='n2g'){front=d.name;back=`<span class="pill grp">${esc(groupName(d.group))}</span> ${rxPill(d.rx)}<br><b>МНН:</b> ${esc(d.mnn)}<br>${esc(d.use)}`}
+  else if(c.mode==='m2n'){front=d.mnn;back=`<b>${esc(d.name)}</b><br>Аналоги: ${esc((d.analogs||[]).join(', ')||'—')}<br><span class="pill grp">${esc(groupName(d.group))}</span>`}
+  else{front=d.name;back=`📍 <b>${esc(locs()[d.name])}</b><br><span class="pill grp">${esc(groupName(d.group))}</span>`}
+  area.innerHTML=`
+  <div class="muted small" style="margin:8px 0">Карточка ${deckIdx+1} из ${deck.length}</div>
+  <div class="progressbar"><div style="width:${deckIdx/deck.length*100}%"></div></div>
+  <div class="flash">
+    <div class="front">${esc(front)} <button class="speak" onclick="speak('${esc(front).replace(/'/g,'')}')">🔊</button></div>
+    ${showBack?`<div class="back">${back}</div>`:''}
+  </div>
+  <div class="row" style="margin-top:12px;justify-content:center">
+    ${showBack
+      ?`<button class="btn" style="border-color:var(--bad);color:var(--bad)" onclick="gradeCard(false)">❌ Не знал</button>
+        <button class="btn primary" onclick="gradeCard(true)">✅ Знал</button>`
+      :`<button class="btn blue" onclick="showBack=true;drawCard()">Показать ответ</button>`}
+  </div>`;
+}
+function gradeCard(ok){
+  const c=deck[deckIdx],srs=srsGet();
+  const s=srs[c.key]||{box:0,due:0};
+  s.box=ok?Math.min(s.box+1,INTERVALS.length-1):0;
+  s.due=Date.now()+INTERVALS[s.box]*864e5;
+  srs[c.key]=s;store.set('srs',srs);
+  if(!ok)deck.push(deck[deckIdx]); // repeat failed card at end of session
+  deckIdx++;showBack=false;drawCard();
+}
+
+// ---- QUIZZES ----
+let quizType=null,quizQ=null,quizN=0,quizCorrect=0,quizAnswered=false;
+const QUIZ_LEN=10;
+const QUIZZES=[
+  ['group','Группа препарата','Покажу препарат — выбери его группу.'],
+  ['symptom','Симптом → препарат','Жалоба покупателя — что предложить?'],
+  ['mnn','Название → МНН','Что за действующее вещество?'],
+  ['suffix','Суффиксы','-прил, -олол, -празол… какая группа?'],
+  ['loc','Где лежит? 📍','По твоим местам из вкладки «Лекарства».']
+];
+function rQuiz(m){
+  const qs=store.get('quizstats',{});
+  m.innerHTML=`<div class="card"><h3>Тренажёры</h3><div class="muted small">10 вопросов за подход. Результаты сохраняются.</div></div>
+  ${QUIZZES.map(([id,t,d])=>{
+    const s=qs[id];
+    return `<div class="card"><div class="row" style="justify-content:space-between">
+      <div><b>${t}</b><div class="muted small">${d}</div>${s?`<div class="small" style="color:var(--accent)">Точность: ${Math.round(s.c/s.a*100)}% (${s.a} отв.)</div>`:''}</div>
+      <button class="btn primary" onclick="startQuiz('${id}')">Старт</button></div></div>`}).join('')}
+  <div id="quizarea"></div>`;
+}
+function startQuiz(t){
+  if(t==='loc'&&Object.keys(locs()).length<4){alert('Сначала заполни хотя бы 4 места во вкладке «Лекарства»');return}
+  quizType=t;quizN=0;quizCorrect=0;nextQ();
+}
+function nextQ(){
+  quizAnswered=false;
+  if(quizN>=QUIZ_LEN){
+    $('#quizarea').innerHTML=`<div class="card" style="text-align:center"><h3>Результат: ${quizCorrect} из ${QUIZ_LEN}</h3>
+    <div class="muted">${quizCorrect>=8?'Отлично! 🏆':quizCorrect>=6?'Хорошо, но повтори карточки 💪':'Вернись к карточкам и попробуй снова 📚'}</div>
+    <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" onclick="startQuiz('${quizType}')">Ещё раз</button></div></div>`;
+    window.scrollTo(0,$('#quizarea').offsetTop-80);return;
+  }
+  quizQ=makeQ(quizType);quizN++;drawQ();
+}
+function makeQ(t){
+  if(t==='group'){
+    const d=shuffle(DATA.drugs)[0];
+    const opts=shuffle([groupName(d.group),...sample(DATA.groups.map(g=>g.name),3,groupName(d.group))]);
+    return {q:`«${d.name}» (${d.mnn}) — какая группа?`,say:d.name,opts,a:groupName(d.group),why:d.use};
+  }
+  if(t==='symptom'){
+    const d=shuffle(DATA.drugs.filter(x=>/ОТС/.test(x.rx)))[0];
+    const others=sample(DATA.drugs.filter(x=>x.group!==d.group).map(x=>x.name),3,null);
+    return {q:`Покупатель: «Мне нужно средство — ${d.use.split(';')[0].split('(')[0].trim()}». Что предложить?`,say:`Мне нужно средство: ${d.use.split(';')[0].split('(')[0]}`,opts:shuffle([d.name,...others]),a:d.name,why:`${d.name} — ${groupName(d.group)}. ${d.warn}`};
+  }
+  if(t==='mnn'){
+    const d=shuffle(DATA.drugs)[0];
+    const opts=shuffle([d.mnn,...sample(DATA.drugs.map(x=>x.mnn).filter((v,i,arr)=>arr.indexOf(v)===i),3,d.mnn)]);
+    return {q:`Действующее вещество (МНН) препарата «${d.name}»?`,say:d.name,opts,a:d.mnn,why:`Аналоги: ${(d.analogs||[]).join(', ')||'—'}`};
+  }
+  if(t==='suffix'){
+    const s=shuffle(DATA.suffixes)[0];
+    const opts=shuffle([s.group,...sample(DATA.suffixes.map(x=>x.group),3,s.group)]);
+    return {q:`Окончание «${s.suffix}» — какая группа?`,say:s.examples,opts,a:s.group,why:`Примеры: ${s.examples}. ${s.note}`};
+  }
+  if(t==='loc'){
+    const L=locs(),names=Object.keys(L);
+    const n=shuffle(names)[0];
+    const locVals=[...new Set(Object.values(L))];
+    const opts=shuffle([L[n],...sample(locVals,Math.min(3,locVals.length-1),L[n])]);
+    return {q:`Где лежит «${n}»?`,say:n,opts,a:L[n],why:''};
+  }
+}
+function drawQ(){
+  const q=quizQ;
+  $('#quizarea').innerHTML=`<div class="card">
+    <div class="muted small">Вопрос ${quizN} из ${QUIZ_LEN} · верно: ${quizCorrect}</div>
+    <div class="progressbar"><div style="width:${(quizN-1)/QUIZ_LEN*100}%"></div></div>
+    <h3 style="margin-top:10px">${esc(q.q)} ${q.say?`<button class="speak" onclick="speak('${esc(q.say).replace(/'/g,'')}')">🔊</button>`:''}</h3>
+    <div id="opts">${q.opts.map(o=>`<button class="opt" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+    <div id="qwhy"></div>
+  </div>`;
+  window.scrollTo(0,$('#quizarea').offsetTop-80);
+  $('#opts').addEventListener('click',e=>{
+    const b=e.target.closest('.opt');if(!b||quizAnswered)return;
+    quizAnswered=true;
+    const ok=b.dataset.o===q.a;
+    if(ok)quizCorrect++;
+    document.querySelectorAll('.opt').forEach(o=>{
+      if(o.dataset.o===q.a)o.classList.add('correct');
+      else if(o===b)o.classList.add('wrong');
+    });
+    const qs=store.get('quizstats',{});const s=qs[quizType]||{a:0,c:0};s.a++;if(ok)s.c++;qs[quizType]=s;store.set('quizstats',qs);
+    $('#qwhy').innerHTML=`${q.why?`<div class="tipbox">${esc(q.why)}</div>`:''}<div class="row" style="margin-top:10px"><button class="btn primary" onclick="nextQ()">Дальше →</button></div>`;
+  });
+}
+
+// ---- LANGUAGE ----
+let langCat='customer',listenQ=null,listenAnswered=false;
+function rLang(m){
+  const st=store.get('settings',{});
+  m.innerHTML=`
+  <div class="card">
+    <h3>Русский язык для аптеки 🇷🇺</h3>
+    <div class="muted small">Главная тренировка: слушай (🔊), повторяй ВСЛУХ, потом проверяй себя аудированием. Медленная озвучка — для разбора, обычная — как говорят покупатели.</div>
+    <div class="row" style="margin-top:10px">
+      <label class="toggle"><input type="checkbox" id="t-en" ${st.showEn===false?'':'checked'}> показывать перевод</label>
+      <label class="toggle"><input type="checkbox" id="t-slow" ${st.slow?'checked':''}> медленная озвучка</label>
+      <button class="btn blue" id="listenbtn">🎧 Аудирование</button>
+    </div>
+  </div>
+  <div id="listenarea"></div>
+  <div class="subtabs" id="lcats">${DATA.phraseCategories.map(c=>`<button data-c="${c.id}" class="${langCat===c.id?'active':''}">${esc(c.name)}</button>`).join('')}</div>
+  <div class="card" id="plist"></div>`;
+  const drawPhrases=()=>{
+    const showEn=store.get('settings',{}).showEn!==false;
+    const cat=DATA.phraseCategories.find(c=>c.id===langCat);
+    $('#plist').innerHTML=cat.phrases.map(p=>`
+      <div class="phrase">
+        <button class="speak" data-say="${esc(p.ru)}">🔊</button>
+        <div><div class="ru">${esc(p.ru)}</div>
+        ${showEn&&p.en?`<div class="en">${esc(p.en)}</div>`:''}
+        ${p.note?`<div class="nt">→ ${esc(p.note)}</div>`:''}</div>
+      </div>`).join('');
+  };
+  drawPhrases();
+  $('#lcats').addEventListener('click',e=>{const b=e.target.closest('button');if(b){langCat=b.dataset.c;document.querySelectorAll('#lcats button').forEach(x=>x.classList.toggle('active',x===b));drawPhrases()}});
+  $('#plist').addEventListener('click',e=>{const b=e.target.closest('.speak');if(b)speak(b.dataset.say)});
+  $('#t-en').addEventListener('change',e=>{const s=store.get('settings',{});s.showEn=e.target.checked;store.set('settings',s);drawPhrases()});
+  $('#t-slow').addEventListener('change',e=>{const s=store.get('settings',{});s.slow=e.target.checked;store.set('settings',s)});
+  $('#listenbtn').addEventListener('click',startListen);
+}
+function startListen(){
+  const all=DATA.phraseCategories.flatMap(c=>c.phrases.filter(p=>p.ru.split(' ').length>1));
+  const p=shuffle(all)[0];
+  const opts=shuffle([p.ru,...sample(all.map(x=>x.ru),3,p.ru)]);
+  listenQ={p,opts};listenAnswered=false;
+  $('#listenarea').innerHTML=`<div class="card">
+    <h3>🎧 Что ты услышал?</h3>
+    <div class="row"><button class="btn blue" onclick="speak(listenQ.p.ru)">▶ Прослушать ещё раз</button></div>
+    <div id="lopts">${opts.map(o=>`<button class="opt" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+    <div id="lwhy"></div>
+  </div>`;
+  speak(p.ru);
+  $('#lopts').addEventListener('click',e=>{
+    const b=e.target.closest('.opt');if(!b||listenAnswered)return;
+    listenAnswered=true;
+    document.querySelectorAll('#lopts .opt').forEach(o=>{
+      if(o.dataset.o===listenQ.p.ru)o.classList.add('correct');
+      else if(o===b)o.classList.add('wrong');
+    });
+    $('#lwhy').innerHTML=`${listenQ.p.en?`<div class="tipbox">${esc(listenQ.p.en)}${listenQ.p.note?' · '+esc(listenQ.p.note):''}</div>`:''}
+    <div class="row" style="margin-top:10px"><button class="btn primary" onclick="startListen()">Следующая фраза →</button></div>`;
+  });
+}
+
+// ---- SCENARIOS ----
+function rScen(m){
+  m.innerHTML=`<div id="scenwrap"><div class="card"><h3>Сценарии у первого стола</h3>
+  <div class="muted small">Прочитай реплику покупателя (или прослушай 🔊), сначала ответь сам вслух — что уточнишь и что предложишь — потом раскрой и сверься.</div></div>
+  ${DATA.scenarios.map((s,i)=>`
+  <div class="card scen" data-i="${i}">
+    <div class="row" style="justify-content:space-between">
+      <b>${esc(s.title)}</b><span class="muted small">раскрыть ▾</span>
+    </div>
+    <div class="small" style="margin-top:4px">🗣 «${esc(s.customer)}» <button class="speak" data-say="${esc(s.customer)}">🔊</button></div>
+    <div class="body">
+      ${s.ask&&s.ask.length?`<b class="small">Что уточнить:</b><ul>${s.ask.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}
+      <b class="small">Что предложить:</b><ul>${s.offer.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>
+      ${s.redflags?`<div class="redflag">🚩 ${esc(s.redflags)}</div>`:''}
+      ${s.upsell&&s.upsell!=='—'?`<div class="tipbox">➕ Допродажа: ${esc(s.upsell)}</div>`:''}
+    </div>
+  </div>`).join('')}</div>`;
+  $('#scenwrap').addEventListener('click',e=>{
+    const sp=e.target.closest('.speak');
+    if(sp){e.stopPropagation();speak(sp.dataset.say);return}
+    const c=e.target.closest('.scen');if(c)c.classList.toggle('open');
+  });
+}
+
+// ---- REFERENCE ----
+function rRef(m){
+  const r=DATA.reference;
+  m.innerHTML=`
+  <div class="card"><h3>📦 ${esc(r.mapteka.title)}</h3>
+    <div class="muted small">${esc(r.mapteka.intro)}</div>
+    <ol class="steps">${r.mapteka.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="muted small">${esc(r.mapteka.manual)}</div>
+  </div>
+  <div class="card"><h3>📜 ${esc(r.rxrules.title)}</h3>
+    <ul class="small" style="padding-left:20px">${r.rxrules.items.map(i=>`<li style="margin:6px 0">${esc(i)}</li>`).join('')}</ul>
+  </div>
+  <div class="card"><h3>🔤 Суффиксы: группа по названию</h3>
+    ${DATA.suffixes.map(s=>`<div class="phrase"><div><div class="ru"><b style="color:var(--accent)">${esc(s.suffix)}</b> — ${esc(s.group)}</div>
+    <div class="nt">${esc(s.examples)} · ${esc(s.note)}</div></div></div>`).join('')}
+  </div>
+  <div class="card"><h3>🏪 ${esc(r.avilek.title)}</h3>
+    <ul class="small" style="padding-left:20px">${r.avilek.facts.map(f=>`<li style="margin:6px 0">${esc(f)}</li>`).join('')}</ul>
+  </div>
+  <div class="card"><h3>📚 ${esc(r.resources.title)}</h3>
+    ${r.resources.items.map(i=>`<div class="phrase"><div><div class="ru"><b>${esc(i.name)}</b></div><div class="nt">${esc(i.desc)}</div></div></div>`).join('')}
+  </div>`;
+}
+</script>
+</body>
+</html>
